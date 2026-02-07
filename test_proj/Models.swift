@@ -42,7 +42,7 @@ struct ElectionDetailResponse: Codable {
     let measures: [Measure]
 }
 
-struct Race: Codable, Identifiable {
+struct Race: Codable, Identifiable, Hashable {
     let id: Int
     let term: Int?
     let race_name: String
@@ -50,7 +50,7 @@ struct Race: Codable, Identifiable {
     let candidates: [Candidate]
 }
 
-struct Candidate: Codable, Identifiable {
+struct Candidate: Codable, Identifiable, Hashable {
     let id: Int
     let name: String
     let party: String?
