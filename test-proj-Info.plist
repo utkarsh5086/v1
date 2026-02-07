@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CIVIC_API_KEY</key>
-	<string>AIzaSyCeRbyjmV_al_Nq_Lan4By4Uk7cJH1qWlE</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>&quot;This app needs access to your calendar to save elections.&quot;</string>
 	<key>NSAppTransportSecurity</key>
