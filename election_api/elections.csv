@@ -1,0 +1,4 @@
+id,name,date,start_time,end_time,level,state,county,city,races_count,measures
+1,Texas Primary Election,2026-03-03,07:00 AM,06:00 PM,state,Texas,,,2,2
+2,Austin City Council Election,2026-11-03,09:00 AM,05:00 PM,local,Texas,Travis County,Austin,1,0
+3,National Midterm Election,2026-11-03,08:00 AM,06:00 PM,national,,,,0,0

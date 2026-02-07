@@ -1,0 +1,19 @@
+{
+	"name": "xcode build server",
+	"version": "1.3.0",
+	"bspVersion": "2.2.0",
+	"languages": [
+		"c",
+		"cpp",
+		"objective-c",
+		"objective-cpp",
+		"swift"
+	],
+	"argv": [
+		"/opt/homebrew/bin/xcode-build-server"
+	],
+	"workspace": "/Users/utkarshsharma/Desktop/test_proj/test_proj.xcodeproj/project.xcworkspace",
+	"build_root": "/Users/utkarshsharma/Library/Developer/Xcode/DerivedData/test_proj-dyajkpocujyydmcyuwulhafaevey",
+	"scheme": "test_proj",
+	"kind": "xcode"
+}

@@ -1,0 +1,4 @@
+id,election_id,term,race_name,num_candidates
+1,1,4,Governor,2
+2,1,4,Attorney General,0
+3,2,2,City Council At-Large,1
