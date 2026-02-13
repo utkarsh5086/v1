@@ -11,7 +11,10 @@ import SwiftUI
 struct test_projApp: App {
     var body: some Scene {
         WindowGroup {
-            RootView()
+            NavigationStack{
+                RootView()
+        }
         }
     }
 }
+

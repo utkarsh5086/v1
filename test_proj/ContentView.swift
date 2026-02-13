@@ -10,206 +10,10 @@ import Combine
 
 import EventKit
 import EventKitUI
+import UserNotifications
 
-struct ContentView: View {
-    @AppStorage("userAddress") private var savedAddress = ""
-    @State private var address: String = ""
-    @State private var elections: [Election] = []
-    @State private var isLoading: Bool = false
 
-    @StateObject private var keyboard = KeyboardObserver()
-
-    var body: some View {
-        ZStack {
-            // MARK: - Main Content
-            VStack(spacing: 0) {
-                if isLoading {
-                    ProgressView()
-                        .padding()
-                }
-
-                List(elections, id: \.id) { election in
-                    HStack {
-                        NavigationLink(
-                            destination: ElectionDetailView(electionId: election.id)
-                        ) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(election.name)
-                                    .font(.headline)
-
-                                Text("Date: \(election.date)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-
-                                Text("Time: \(election.start_time ?? "TBD") - \(election.end_time ?? "TBD")")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-
-                                Text("\(election.races_count ?? 0) Races • \(election.measures ?? 0) Measures")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 6)
-                        }
-
-                        Spacer()
-
-                        Button {
-                            addElectionToCalendar(election)
-                        } label: {
-                            Image(systemName: "calendar.badge.plus")
-                                .font(.title2)
-                        }
-                        .buttonStyle(BorderlessButtonStyle())
-                    }
-                }
-                .listStyle(.plain)
-                .padding(.bottom, 160) // space for input + bottom bar
-            }
-
-            // MARK: - Floating Address Input
-            VStack {
-                Spacer()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Address where you are registered to vote")
-                        .font(.headline)
-
-                    HStack {
-                        TextField(
-                            "Street, City, State, ZIP",
-                            text: $address
-                        )
-                        .textFieldStyle(.roundedBorder)
-
-                        Button("Search") {
-                            fetchElections()
-                            hideKeyboard()
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.blue.opacity(0.15))
-                        .cornerRadius(8)
-                    }
-                }
-                .padding()
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(14)
-                .shadow(radius: 4)
-                .padding(.horizontal)
-                .padding(.bottom, keyboard.keyboardHeight > 0
-                         ? keyboard.keyboardHeight + 70
-                         : 70)
-                .animation(.easeOut(duration: 0.25), value: keyboard.keyboardHeight)
-            }
-
-            // MARK: - Bottom Bar
-            VStack {
-                Spacer()
-                BottomBar()
-            }
-        }
-        .navigationTitle("Your Upcoming Elections")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-    if address.isEmpty && !savedAddress.isEmpty {
-        address = savedAddress
-        fetchElections()
-    }
-}
-
-    }
-
-    // MARK: - Helpers
-
-    func hideKeyboard() {
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil,
-            from: nil,
-            for: nil
-        )
-    }
-
-    func fetchElections() {
-        guard !address.isEmpty else { return }
-        isLoading = true
-
-        let encodedAddress =
-            address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-
-        let urlString =
-            "http://127.0.0.1:8000/elections?address=\(encodedAddress)"
-
-        guard let url = URL(string: urlString) else {
-            isLoading = false
-            return
-        }
-
-        URLSession.shared.dataTask(with: url) { data, _, error in
-            DispatchQueue.main.async {
-                isLoading = false
-            }
-
-            if let error = error {
-                print("Error fetching elections:", error)
-                return
-            }
-
-            guard let data = data else { return }
-
-            do {
-                let decoder = JSONDecoder()
-                let result = try decoder.decode(ElectionResponse.self, from: data)
-                DispatchQueue.main.async {
-                    self.elections = result.elections
-                }
-            } catch {
-                print("Failed to decode JSON:", error)
-            }
-        }
-        .resume()
-    }
-
-    func addElectionToCalendar(_ election: Election) {
-        let eventStore = EKEventStore()
-
-        eventStore.requestAccess(to: .event) { granted, _ in
-            guard granted else { return }
-
-            DispatchQueue.main.async {
-                let startTime = election.start_time ?? "09:00"
-                let startDateString = "\(election.date) \(startTime)"
-
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd h:mm a"
-                formatter.locale = Locale(identifier: "en_US_POSIX")
-
-                guard let startDate = formatter.date(from: startDateString) else {
-                    return
-                }
-
-                let endDate =
-                    Calendar.current.date(byAdding: .hour, value: 1, to: startDate)
-                    ?? startDate.addingTimeInterval(3600)
-
-                let event = EKEvent(eventStore: eventStore)
-                event.title = election.name
-                event.startDate = startDate
-                event.endDate = endDate
-                event.calendar =
-                    eventStore.defaultCalendarForNewEvents
-                    ?? eventStore.calendars(for: .event).first
-
-                do {
-                    try eventStore.save(event, span: .thisEvent)
-                } catch {
-                    print("Failed to save event:", error)
-                }
-            }
-        }
-    }
-}
+// MARK: - ContentView
 
 // MARK: - ExpandableCard
 struct ExpandableCard<Content: View>: View {
@@ -269,80 +73,7 @@ struct ExpandableCard<Content: View>: View {
     }
 }
 
-
-
 // MARK: - ElectionDetailView with Bottom Bar
-struct ElectionDetailView: View {
-    let electionId: Int
-
-    @State private var detail: ElectionDetailResponse?
-    @State private var expandedRaces: Set<Int> = []
-    @State private var expandedCandidates: [Int: Int?] = [:]
-
-    var body: some View {
-        ZStack {
-            // Scrollable content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let detail = detail {
-                        // Header
-                        Text(detail.election.name)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-
-                        Text("Date: \(detail.election.date)")
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal)
-                            .padding(.bottom, 10)
-
-                        // Races
-                        ForEach(detail.races, id: \.id) { race in
-                            RaceView(
-                                race: race,
-                                expandedRaces: $expandedRaces,
-                                expandedCandidates: $expandedCandidates
-                            )
-                        }
-
-                        // Election Preparation Buttons
-                        ElectionPreparationButtons()
-                            .padding(.bottom, 20)
-                    } else {
-                        ProgressView("Loading election...")
-                            .padding()
-                    }
-                }
-                .padding(.bottom, 80) // Prevent content from being hidden by bottom bar
-            }
-
-            // Persistent Bottom Bar
-            VStack {
-                Spacer()
-                BottomBar()
-            }
-        }
-        .navigationTitle(detail?.election.name ?? "Election")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await fetchElectionDetail()
-        }
-    }
-
-    // MARK: - Fetch Election Detail
-    func fetchElectionDetail() async {
-        guard let url = URL(string: "http://127.0.0.1:8000/elections/\(electionId)") else { return }
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let decoded = try JSONDecoder().decode(ElectionDetailResponse.self, from: data)
-            DispatchQueue.main.async {
-                self.detail = decoded
-            }
-        } catch {
-            print("Failed to fetch election detail:", error)
-        }
-    }
-}
 
 
 // MARK: - Race View
@@ -480,71 +211,28 @@ func partyColor(_ party: String?) -> Color {
     }
 }
 
-// MARK: - BottomBar
-struct BottomBar: View {
-    let icons = ["house", "magnifyingglass", "calendar", "star", "bell", "person"]
-    let labels = ["Home", "Search", "Calendar", "Favorites", "Alerts", "Profile"]
-    @State private var selectedIndex = 0
-    
-    var body: some View {
-        HStack {
-            ForEach(0..<6) { index in
-                Button(action: {
-                    selectedIndex = index
-                    print("Tapped \(labels[index])")
-                    // Add navigation or action here
-                }) {
-                    VStack(spacing: 4) {
-                        Image(systemName: icons[index])
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(selectedIndex == index ? .blue : .gray)
-                        Text(labels[index])
-                            .font(.caption2)
-                            .foregroundColor(selectedIndex == index ? .blue : .gray)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-        }
-        .padding(.vertical, 8)
-        .background(Color(UIColor.systemBackground).shadow(radius: 2))
-    }
-}
-
-
-struct RootView: View {
-    @AppStorage("hasCompletedSignup") private var hasCompletedSignup = false
-
-    var body: some View {
-        NavigationStack {
-            if hasCompletedSignup {
-                ContentView()
-            } else {
-                TitleScreen()
-            }
-        }
-        .id(hasCompletedSignup) // 🔥 resets navigation when value changes
-    }
-}
-
 
 struct TitleScreen: View {
+    @State private var showingSignUp = false
+    @State private var showingSignIn = false
+
     var body: some View {
         VStack(spacing: 40) {
             Spacer()
 
-            Text("Welcome to VoteHelper")
+            Text("VoteBase")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Stay informed about elections and voting.")
+            Text("Your personalized election hub")
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
             Spacer()
 
-            NavigationLink(destination: SignUpView()) {
+            // MARK: - Sign Up Button (sheet)
+            Button(action: { showingSignUp = true }) {
                 Text("Sign Up")
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -553,6 +241,23 @@ struct TitleScreen: View {
                     .cornerRadius(12)
             }
             .padding(.horizontal)
+            .sheet(isPresented: $showingSignUp) {
+                SignUpView()
+            }
+
+            // MARK: - Sign In Button (sheet)
+            Button(action: { showingSignIn = true }) {
+                Text("Sign In")
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+            }
+            .padding(.horizontal)
+            .sheet(isPresented: $showingSignIn) {
+                SignInView()
+            }
 
             Button("Info") {
                 print("Info tapped")
@@ -565,78 +270,50 @@ struct TitleScreen: View {
     }
 }
 
+
+
 struct SignUpView: View {
     @AppStorage("hasCompletedSignup") private var hasCompletedSignup = false
-    // your @State fields stay the same
-    //@Environment(\.dismiss) var dismiss
     @AppStorage("userAddress") private var userAddress = ""
+    @AppStorage("notificationsEnabled") private var notificationsEnabled = false
+    @AppStorage("userEmail") private var userEmail = ""
+
+
     @State private var name = ""
     @State private var dateOfBirth = Date()
-    @State private var gender = "Prefer not to say"
-
+    @State private var gender = "Male"
     @State private var address = ""
-    @State private var city = ""
-    @State private var state = ""
-    @State private var zip = ""
-
     @State private var email = ""
     @State private var password = ""
-    @State private var confirmPassword = ""
+    @State private var isLoading = false
+    @State private var signupError: String?
 
-    let genders = ["Male", "Female", "Non-binary", "Prefer not to say"]
+    @Environment(\.presentationMode) private var presentationMode
+
+    private let genders = ["Male", "Female", "Other"]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 20) {
+                    Text("Sign Up")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
 
-                Text("Create Account")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-
-                // all your form fields here...
-                Group {
                     TextField("Full Name", text: $name)
                         .textFieldStyle(.roundedBorder)
 
-                    DatePicker(
-                        "Date of Birth",
-                        selection: $dateOfBirth,
-                        displayedComponents: .date
-                    )
+                    DatePicker("Date of Birth", selection: $dateOfBirth, displayedComponents: .date)
+                        .datePickerStyle(.compact)
 
                     Picker("Gender", selection: $gender) {
-                        ForEach(genders, id: \.self) {
-                            Text($0)
-                        }
+                        ForEach(genders, id: \.self) { g in Text(g) }
                     }
-                    .pickerStyle(.menu)
-                }
+                    .pickerStyle(.segmented)
 
-                Divider()
-
-                // MARK: - Address
-                Group {
-                    TextField("Street Address", text: $address)
+                    TextField("Address", text: $address)
                         .textFieldStyle(.roundedBorder)
 
-                    HStack {
-                        TextField("City", text: $city)
-                            .textFieldStyle(.roundedBorder)
-
-                        TextField("State", text: $state)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 70)
-                    }
-
-                    TextField("ZIP Code", text: $zip)
-                        .textFieldStyle(.roundedBorder)
-                        .keyboardType(.numberPad)
-                }
-
-                Divider()
-
-                // MARK: - Account Info
-                Group {
                     TextField("Email", text: $email)
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.emailAddress)
@@ -645,32 +322,123 @@ struct SignUpView: View {
                     SecureField("Password", text: $password)
                         .textFieldStyle(.roundedBorder)
 
-                    SecureField("Confirm Password", text: $confirmPassword)
-                        .textFieldStyle(.roundedBorder)
+                    Toggle(isOn: $notificationsEnabled) {
+                        Text("Turn on notifications")
+                    }
+                    .padding()
+                    .onChange(of: notificationsEnabled) { newValue in
+                        if newValue {
+                            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                                DispatchQueue.main.async {
+                                    if !granted { notificationsEnabled = false }
+                                }
+                            }
+                        }
+                    }
+
+                    if let signupError = signupError {
+                        Text(signupError)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+
+                    Button(action: signUp) {
+                        if isLoading {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                        } else {
+                            Text("Sign Up")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                        }
+                    }
+                    .disabled(isLoading)
+
+                    Spacer()
                 }
-                Button("Sign Up") {
-                    signUp()
-                }
-                .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(12)
             }
-            .padding()
+            .navigationTitle("Sign Up")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 
     func signUp() {
-    // Basic validation can come later
+        guard !name.isEmpty, !address.isEmpty, !email.isEmpty, !password.isEmpty else {
+            signupError = "Please fill in all fields."
+            return
+        }
 
-    let fullAddress = "\(address), \(city), \(state) \(zip)"
-    userAddress = fullAddress
+        isLoading = true
+        signupError = nil
 
-    hasCompletedSignup = true
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dobString = formatter.string(from: dateOfBirth)
+
+        let requestBody = SignUpRequest(
+            name: name,
+            date_of_birth: dobString,
+            gender: gender,
+            address: address,
+            email: email,
+            password: password
+        )
+
+        guard let url = URL(string: "http://127.0.0.1:8000/users") else {
+            signupError = "Invalid server URL."
+            isLoading = false
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do { request.httpBody = try JSONEncoder().encode(requestBody) } 
+        catch { signupError = "Failed to encode request."; isLoading = false; return }
+
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let error = error {
+                    signupError = "Sign up failed: \(error.localizedDescription)"
+                    return
+                }
+                guard let data = data else {
+                    signupError = "No response from server."
+                    return
+                }
+                do {
+                    let result = try JSONDecoder().decode(SignUpResponse.self, from: data)
+                    if result.success {
+                        // ✅ Use the address user entered
+                        userAddress = address
+                        hasCompletedSignup = true
+
+                        // Dismiss sheet to reveal ContentView
+                        presentationMode.wrappedValue.dismiss()
+                        userEmail = email
+                        print("Sign up completed successfully")
+                    } else {
+                        signupError = result.message ?? "Sign up failed."
+                    }
+                } catch {
+                    signupError = "Failed to decode server response."
+                }
+            }
+        }.resume()
+    }
 }
 
-}
 
 final class KeyboardObserver: ObservableObject {
     @Published var keyboardHeight: CGFloat = 0
@@ -698,3 +466,531 @@ final class KeyboardObserver: ObservableObject {
 }
 
 
+// MARK: - Navigation Destinations
+enum BottomBarDestination: Hashable {
+    case search
+    case detail(Int)
+    case profile   // <- new
+}
+
+
+
+
+
+// MARK: - SearchView
+struct SearchView: View {
+    @Binding var path: NavigationPath
+    @State private var address: String = ""
+    @State private var elections: [Election] = []
+    @State private var isLoading = false
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                TextField("Enter address", text: $address)
+                    .textFieldStyle(.roundedBorder)
+                    .padding()
+
+                Button("Search") { fetchElections() }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+
+                if isLoading { ProgressView().padding() }
+
+                List(elections, id: \.id) { election in
+                    Button {
+                        path.append(BottomBarDestination.detail(election.id))
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(election.name).font(.headline)
+                            Text("Date: \(election.date)").font(.subheadline).foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 6)
+                    }
+                }
+                .listStyle(.plain)
+                .padding(.bottom, 80)
+            }
+
+            VStack {
+                Spacer()
+                BottomBar(path: $path)
+            }
+        }
+        .navigationTitle("Search Elections")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    func fetchElections() {
+        guard !address.isEmpty else { return }
+        isLoading = true
+        let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let urlString = "http://127.0.0.1:8000/elections?address=\(encodedAddress)"
+        //let urlString = "http://172.20.10.2:8000/elections?address=\(encodedAddress)"
+        guard let url = URL(string: urlString) else { isLoading = false; return }
+
+        URLSession.shared.dataTask(with: url) { data, _, error in
+            DispatchQueue.main.async { isLoading = false }
+            if let error = error { print("Error:", error); return }
+            guard let data = data else { return }
+
+            do {
+                let decoder = JSONDecoder()
+                let result = try decoder.decode(ElectionResponse.self, from: data)
+                DispatchQueue.main.async { self.elections = result.elections }
+            } catch { print("Failed to decode JSON:", error) }
+        }.resume()
+    }
+}
+
+// MARK: - SignInView
+
+struct SignInView: View {
+    @AppStorage("hasCompletedSignup") private var hasCompletedSignup = false
+    @AppStorage("userAddress") private var userAddress = ""
+    @AppStorage("userEmail") private var userEmail = ""
+
+
+    @State private var email = ""
+    @State private var password = ""
+    @State private var isLoading = false
+    @State private var signinError: String?
+
+    @Environment(\.presentationMode) private var presentationMode
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Spacer()
+
+                Text("Sign In")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+
+                // Email & Password
+                TextField("Email", text: $email)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+
+                SecureField("Password", text: $password)
+                    .textFieldStyle(.roundedBorder)
+
+                // Error message
+                if let signinError = signinError {
+                    Text(signinError)
+                        .foregroundColor(.red)
+                        .font(.subheadline)
+                }
+
+                // Sign In Button
+                Button(action: signIn) {
+                    if isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    } else {
+                        Text("Sign In")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                }
+                .disabled(isLoading)
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Sign In")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    func signIn() {
+        guard !email.isEmpty, !password.isEmpty else {
+            signinError = "Please enter email and password."
+            return
+        }
+
+        isLoading = true
+        signinError = nil
+
+        let requestBody = SignInRequest(email: email, password: password)
+        guard let url = URL(string: "http://127.0.0.1:8000/users/signin") else {
+            signinError = "Invalid server URL."
+            isLoading = false
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do { request.httpBody = try JSONEncoder().encode(requestBody) } 
+        catch { signinError = "Failed to encode request."; isLoading = false; return }
+
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            DispatchQueue.main.async {
+                isLoading = false
+
+                if let error = error {
+                    signinError = "Sign in failed: \(error.localizedDescription)"
+                    return
+                }
+
+                guard let data = data else {
+                    signinError = "No response from server."
+                    return
+                }
+
+                do {
+                    let result = try JSONDecoder().decode(SignInResponse.self, from: data)
+                    if result.success, let addr = result.address {
+                        userAddress = addr
+                        hasCompletedSignup = true // triggers RootView to show ContentView
+
+                        // Dismiss sheet after successful sign in
+                        presentationMode.wrappedValue.dismiss()
+                        userEmail = email
+                        print("Sign in completed successfully")
+                    } else {
+                        signinError = result.message ?? "Invalid email or password."
+                    }
+                } catch {
+                    signinError = "Failed to decode server response."
+                }
+            }
+        }.resume()
+    }
+}
+
+// MARK: - ElectionDetailView
+
+
+
+// MARK: - Root View
+
+struct RootView: View {
+    @AppStorage("hasCompletedSignup") private var hasCompletedSignup = false
+
+    var body: some View {
+        if hasCompletedSignup {
+            ContentView()
+        } else {
+            TitleScreen()  // <- no NavigationStack here
+        }
+    }
+}
+
+// MARK: - Election Detail View
+struct ElectionDetailView: View {
+    let electionId: Int
+    @Binding var path: NavigationPath
+
+    @State private var detail: ElectionDetailResponse?
+    @State private var expandedRaces: Set<Int> = []
+    @State private var expandedCandidates: [Int: Int?] = [:]
+
+    var body: some View {
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let detail = detail {
+                        Text(detail.election.name)
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .padding(.horizontal)
+
+                        Text("Date: \(detail.election.date)")
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal)
+                            .padding(.bottom, 10)
+
+                        ForEach(detail.races, id: \.id) { race in
+                            RaceView(
+                                race: race,
+                                expandedRaces: $expandedRaces,
+                                expandedCandidates: $expandedCandidates
+                            )
+                        }
+                    } else {
+                        ProgressView("Loading election...")
+                            .padding()
+                    }
+                }
+                .padding(.bottom, 80)
+            }
+
+            VStack {
+                Spacer()
+                BottomBar(path: $path)
+            }
+        }
+        .navigationTitle(detail?.election.name ?? "Election")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await fetchElectionDetail() }
+    }
+
+    func fetchElectionDetail() async {
+        guard let url = URL(string: "http://127.0.0.1:8000/elections/\(electionId)") else { return }
+        //guard let url = URL(string: "http://172.20.10.2:8000/elections/\(electionId)") else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let decoded = try JSONDecoder().decode(ElectionDetailResponse.self, from: data)
+            DispatchQueue.main.async { self.detail = decoded }
+        } catch {
+            print("Failed to fetch election detail:", error)
+        }
+    }
+}
+
+
+enum Destination: Hashable {
+    case title      // the app's title screen
+    case home
+    case search
+    case electionDetail(Int)
+}
+
+
+struct ContentView: View {
+    @AppStorage("userAddress") private var savedAddress = ""
+    @AppStorage("notificationsEnabled") private var notificationsEnabled = false
+
+    @State private var address: String = ""
+    @State private var elections: [Election] = []
+    @State private var isLoading: Bool = false
+    @State private var path = NavigationPath()
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            ZStack {
+                VStack(spacing: 0) {
+                    if !address.isEmpty {
+                        Text("Address: \(address)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 8)
+                    }
+
+                    if isLoading {
+                        ProgressView()
+                            .padding()
+                    }
+
+                    List(elections, id: \.id) { election in
+                        HStack {
+                            Button {
+                                path.append(BottomBarDestination.detail(election.id))
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(election.name).font(.headline)
+                                    Text("Date: \(election.date)").font(.subheadline).foregroundColor(.secondary)
+                                    Text("Time: \(election.start_time ?? "TBD") - \(election.end_time ?? "TBD")")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    Text("\(election.races_count ?? 0) Races • \(election.measures ?? 0) Measures")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 6)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                addElectionToCalendar(election)
+                            } label: {
+                                Image(systemName: "calendar.badge.plus")
+                                    .font(.title2)
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
+                        }
+                    }
+                    .listStyle(.plain)
+                    .padding(.bottom, 80)
+                }
+
+                VStack {
+                    Spacer()
+                    BottomBar(path: $path)
+                }
+            }
+            .navigationTitle("Your Upcoming Elections")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                if address.isEmpty && !savedAddress.isEmpty {
+                    address = savedAddress
+                    fetchElections()
+                }
+            }
+            .navigationDestination(for: BottomBarDestination.self) { destination in
+                switch destination {
+                case .search:
+                    SearchView(path: $path)
+                case .detail(let electionId):
+                    ElectionDetailView(electionId: electionId, path: $path)
+                case .profile:                           // <- handle Profile
+                    ProfileView(path: $path)
+                }
+            }
+        }
+    }
+
+    // MARK: - Fetch Elections
+    func fetchElections() {
+    guard !address.isEmpty else { return }
+    isLoading = true
+    let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+    let urlString = "http://127.0.0.1:8000/elections?address=\(encodedAddress)"
+    //let urlString = "http://172.20.10.2:8000/elections?address=\(encodedAddress)"
+    guard let url = URL(string: urlString) else {
+        isLoading = false
+        return 
+    }
+
+    URLSession.shared.dataTask(with: url) { data, _, error in
+        DispatchQueue.main.async { isLoading = false }
+        if let error = error { 
+            print("Error fetching elections:", error)
+            return 
+        }
+        guard let data = data else { return }
+
+        do {
+            let decoder = JSONDecoder()
+            
+
+            let result = try decoder.decode(ElectionResponse.self, from: data)
+
+            // Detect new elections
+            let newElections = result.elections.filter { newElection in
+                !self.elections.contains(where: { $0.id == newElection.id })
+            }
+
+            // Send notifications for new elections
+            if !newElections.isEmpty {
+                for election in newElections {
+                    sendNotification(
+                        title: "New Election Available",
+                        body: "\(election.name) on \(election.date)"
+                    )
+                }
+            }
+
+            // Update state with latest elections
+            DispatchQueue.main.async { self.elections = result.elections }
+
+        } catch {
+            print("Failed to decode JSON:", error)
+        }
+    }.resume()
+}
+
+
+    // MARK: - Calendar
+    func addElectionToCalendar(_ election: Election) {
+        let eventStore = EKEventStore()
+        eventStore.requestAccess(to: .event) { granted, _ in
+            guard granted else { return }
+            DispatchQueue.main.async {
+                let startTime = election.start_time ?? "09:00"
+                let startDateString = "\(election.date) \(startTime)"
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd h:mm a"
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                guard let startDate = formatter.date(from: startDateString) else { return }
+                let endDate = Calendar.current.date(byAdding: .hour, value: 1, to: startDate) ?? startDate.addingTimeInterval(3600)
+                let event = EKEvent(eventStore: eventStore)
+                event.title = election.name
+                event.startDate = startDate
+                event.endDate = endDate
+                event.calendar = eventStore.defaultCalendarForNewEvents ?? eventStore.calendars(for: .event).first
+                do { try eventStore.save(event, span: .thisEvent) } 
+                catch { print("Failed to save event:", error) }
+            }
+        }
+    }
+
+    // MARK: - Local Notifications
+    func sendNotification(title: String, body: String) {
+        guard notificationsEnabled else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Notification error: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+// MARK: - Updated BottomBar
+struct BottomBar: View {
+    @Binding var path: NavigationPath
+    @AppStorage("hasCompletedSignup") private var hasCompletedSignup = false
+
+    var body: some View {
+        HStack {
+            BottomBarButton(icon: "house.fill", title: "Home", color: .blue) {
+                path = NavigationPath()
+            }
+
+            BottomBarButton(icon: "magnifyingglass", title: "Search", color: .blue) {
+                path.append(BottomBarDestination.search)
+            }
+
+            BottomBarButton(icon: "person.crop.circle", title: "Profile", color: .blue) {
+                path.append(BottomBarDestination.profile)
+            }
+
+            BottomBarButton(icon: "arrow.backward.circle", title: "Log Out", color: .red) {
+                hasCompletedSignup = false
+                path = NavigationPath()
+            }
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(Color(UIColor.systemGray6).ignoresSafeArea(edges: .bottom))
+    }
+}
+
+struct BottomBarButton: View {
+    let icon: String
+    let title: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                Text(title)
+                    .font(.caption)
+            }
+            .foregroundColor(color)
+            .frame(maxWidth: .infinity)
+        }
+    }
+}

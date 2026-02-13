@@ -65,3 +65,39 @@ struct Measure: Codable, Identifiable {
     let no_description: String?
 }
 
+struct SignUpRequest: Codable {
+    let name: String
+    let date_of_birth: String
+    let gender: String
+    let address: String
+    let email: String
+    let password: String
+}
+
+
+struct SignUpResponse: Codable {
+    let success: Bool
+    let message: String
+    let user_id: Int?
+}
+
+// MARK: - Request & Response Structs
+struct SignInRequest: Codable {
+    let email: String
+    let password: String
+}
+
+struct SignInResponse: Codable {
+    let success: Bool
+    let address: String?
+    let message: String?
+}
+
+struct UserProfile: Codable {
+    let id: Int
+    let name: String
+    let email: String
+    let date_of_birth: String
+    let gender: String
+    let address: String
+}

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7FB298282F3AEE1F006140E7 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB298272F3AEE1F006140E7 /* ProfileView.swift */; };
 		7FCE5FE62F2DB9270027A803 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FCE5FE52F2DB9270027A803 /* Models.swift */; };
 		7FF75EA42F2F2A1100B5E42D /* MeasureDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FF75EA32F2F2A1100B5E42D /* MeasureDetailView.swift */; };
 		7FF75EA62F2F2C9900B5E42D /* CalendarHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FF75EA52F2F2C9900B5E42D /* CalendarHelper.swift */; };
@@ -37,6 +38,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		7FB298272F3AEE1F006140E7 /* ProfileView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		7FCE5FE52F2DB9270027A803 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		7FF75EA32F2F2A1100B5E42D /* MeasureDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasureDetailView.swift; sourceTree = "<group>"; };
 		7FF75EA52F2F2C9900B5E42D /* CalendarHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHelper.swift; sourceTree = "<group>"; };
@@ -100,6 +102,7 @@
 		7FF7FFBB2F2C9368006E8F15 /* test_proj */ = {
 			isa = PBXGroup;
 			children = (
+				7FB298272F3AEE1F006140E7 /* ProfileView.swift */,
 				7FF7FFBC2F2C9368006E8F15 /* test_projApp.swift */,
 				7FF7FFBE2F2C9368006E8F15 /* ContentView.swift */,
 				7FF75EA32F2F2A1100B5E42D /* MeasureDetailView.swift */,
@@ -270,6 +273,7 @@
 				7FF7FFBF2F2C9368006E8F15 /* ContentView.swift in Sources */,
 				7FF75EA42F2F2A1100B5E42D /* MeasureDetailView.swift in Sources */,
 				7FF7FFBD2F2C9368006E8F15 /* test_projApp.swift in Sources */,
+				7FB298282F3AEE1F006140E7 /* ProfileView.swift in Sources */,
 				7FF75EA62F2F2C9900B5E42D /* CalendarHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
