@@ -81,6 +81,7 @@ struct RaceView: View {
     let race: Race
     @Binding var expandedRaces: Set<Int>
     @Binding var expandedCandidates: [Int: Int?]
+    @Binding var selectedCandidates: [Int: Int?]
 
     var body: some View {
         ExpandableCard(
@@ -104,7 +105,8 @@ struct RaceView: View {
                     CandidateView(
                         candidate: candidate,
                         raceId: race.id,
-                        expandedCandidates: $expandedCandidates
+                        expandedCandidates: $expandedCandidates,
+                        selectedCandidates: $selectedCandidates
                     )
                 }
             }
@@ -113,10 +115,12 @@ struct RaceView: View {
 }
 
 // MARK: - Candidate View
-struct CandidateView: View {
+/*struct CandidateView: View {
     let candidate: Candidate
     let raceId: Int
     @Binding var expandedCandidates: [Int: Int?]
+    @Binding var selectedCandidates: [Int: Int?]
+
 
     var body: some View {
         ExpandableCard(
@@ -155,6 +159,71 @@ struct CandidateView: View {
                 }
             }
         }
+    }
+}
+*/
+struct CandidateView: View {
+    let candidate: Candidate
+    let raceId: Int
+    @Binding var expandedCandidates: [Int: Int?]
+    @Binding var selectedCandidates: [Int: Int?]
+
+    var isSelected: Bool {
+        selectedCandidates[raceId] == candidate.id
+    }
+
+    var body: some View {
+        ExpandableCard(
+            title: "",
+            isExpanded: Binding(
+                get: { expandedCandidates[raceId] == candidate.id },
+                set: { newValue in
+                    if newValue {
+                        expandedCandidates[raceId] = candidate.id
+                    } else {
+                        expandedCandidates[raceId] = nil
+                    }
+                }
+            ),
+            subtitle: candidate.party,
+            isParty: true
+        ) {
+            VStack(alignment: .leading, spacing: 6) {
+                if let description = candidate.description {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .background(Color(UIColor.systemGray6))
+                        .cornerRadius(8)
+                }
+            }
+        }
+        .overlay(
+            HStack {
+                Button {
+                    if isSelected {
+                        selectedCandidates[raceId] = nil
+                    } else {
+                        selectedCandidates[raceId] = candidate.id
+                    }
+                } label: {
+                    Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                        .font(.title2)
+                        .foregroundColor(isSelected ? .blue : .gray)
+                }
+
+                Text(candidate.name)
+                    .font(.headline)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12),
+            alignment: .topLeading
+        )
     }
 }
 
@@ -474,9 +543,6 @@ enum BottomBarDestination: Hashable {
 }
 
 
-
-
-
 // MARK: - SearchView
 struct SearchView: View {
     @Binding var path: NavigationPath
@@ -673,9 +739,6 @@ struct SignInView: View {
     }
 }
 
-// MARK: - ElectionDetailView
-
-
 
 // MARK: - Root View
 
@@ -699,6 +762,9 @@ struct ElectionDetailView: View {
     @State private var detail: ElectionDetailResponse?
     @State private var expandedRaces: Set<Int> = []
     @State private var expandedCandidates: [Int: Int?] = [:]
+    @State private var selectedCandidates: [Int: Int?] = [:]
+// raceId : candidateId?
+
 
     var body: some View {
         ZStack {
@@ -719,7 +785,8 @@ struct ElectionDetailView: View {
                             RaceView(
                                 race: race,
                                 expandedRaces: $expandedRaces,
-                                expandedCandidates: $expandedCandidates
+                                expandedCandidates: $expandedCandidates,
+                                selectedCandidates: $selectedCandidates
                             )
                         }
                     } else {
